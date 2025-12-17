@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cao Khánh Duy</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Inter', sans-serif; background:#050505; }
+  </style>
+</head>
+<body class="h-screen text-white overflow-hidden">
+
+  <!-- HEADER -->
+  <header id="header" class="flex items-center justify-between px-6 py-3 border-b border-white/10">
+    <div class="flex items-center gap-3">
+      <i class="fa-solid fa-code text-purple-400"></i>
+      <span class="font-semibold">Cao Khánh Duy</span>
+    </div>
+    <div class="flex gap-2 text-sm">
+      <button id="previewBtn" class="px-3 py-1 rounded bg-purple-600 hover:bg-purple-700">Xem trước (Ctrl+Enter)</button>
+      <button id="uploadBtn" class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700">Upload HTML</button>
+      <button id="saveBtn" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">Save</button>
+    </div>
+  </header>
+
+  <!-- EDITOR FULLSCREEN -->
+  <main id="editorView" class="h-[calc(100vh-56px)] flex flex-col">
+    <div class="flex gap-4 px-4 py-2 text-sm border-b border-white/10 bg-black/40">
+      <button data-tab="html" class="tab-btn text-purple-400">HTML</button>
+      <button data-tab="css" class="tab-btn text-gray-400">CSS</button>
+      <button data-tab="js" class="tab-btn text-gray-400">JS</button>
+      <span class="ml-auto text-xs text-gray-400">Auto save • Ctrl+Enter xem trước • Esc quay lại</span>
+    </div>
+
+    <textarea id="html" class="editor flex-1 bg-[#0b0b0b] p-4 outline-none resize-none text-sm"></textarea>
+    <textarea id="css" class="editor hidden flex-1 bg-[#0b0b0b] p-4 outline-none resize-none text-sm"></textarea>
+    <textarea id="js" class="editor hidden flex-1 bg-[#0b0b0b] p-4 outline-none resize-none text-sm"></textarea>
+  </main>
+
+  <!-- PREVIEW FULLSCREEN -->
+  <main id="previewView" class="hidden h-[calc(100vh-56px)] bg-black flex flex-col">
+    <div class="flex justify-between items-center px-4 py-2 border-b border-white/10">
+      <span class="text-sm text-gray-400">Xem trước</span>
+      <div class="flex gap-2">
+        <button id="consoleBtn" class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">Console</button>
+        <button id="backBtn" class="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-sm">Quay lại (Esc)</button>
+      </div>
+    </div>
+    <iframe id="preview" class="w-full flex-1 bg-white"></iframe>
+    <div id="console" class="hidden h-40 bg-[#0b0b0b] border-t border-white/10 p-3 text-xs overflow-auto"></div>
+  </main>
+
+  <script>
+    /* Tabs */
+    const tabs = document.querySelectorAll('.tab-btn');
+    const editors = document.querySelectorAll('.editor');
+    tabs.forEach(btn => btn.onclick = () => {
+      tabs.forEach(b => b.classList.replace('text-purple-400','text-gray-400'));
+      btn.classList.replace('text-gray-400','text-purple-400');
+      editors.forEach(e => e.classList.add('hidden'));
+      document.getElementById(btn.dataset.tab).classList.remove('hidden');
+    });
+
+    /* Elements */
+    const htmlEl = document.getElementById('html');
+    const cssEl = document.getElementById('css');
+    const jsEl = document.getElementById('js');
+    const iframe = document.getElementById('preview');
+    const consoleBox = document.getElementById('console');
+
+    /* Run */
+    function runCode() {
+      const code = `<!DOCTYPE html><html><head><style>${cssEl.value}</style></head><body>${htmlEl.value}<script>
+        const log = console.log;
+        console.log = (...a)=>{ parent.postMessage({type:'log',data:a},'*'); log(...a); };
+        ${jsEl.value}
+      <\\/script></body></html>`;
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open(); doc.write(code); doc.close();
+    }
+
+    /* View Switch */
+    const editorView = document.getElementById('editorView');
+    const previewView = document.getElementById('previewView');
+    document.getElementById('previewBtn').onclick = () => { runCode(); editorView.classList.add('hidden'); previewView.classList.remove('hidden'); };
+    document.getElementById('backBtn').onclick = () => { previewView.classList.add('hidden'); editorView.classList.remove('hidden'); };
+
+    /* Console */
+    document.getElementById('consoleBtn').onclick = () => consoleBox.classList.toggle('hidden');
+    window.addEventListener('message', e => {
+      if(e.data?.type==='log'){
+        const div = document.createElement('div');
+        div.textContent = e.data.data.join(' ');
+        consoleBox.appendChild(div);
+        consoleBox.scrollTop = consoleBox.scrollHeight;
+      }
+    });
+
+    /* Auto save */
+    let t; const save = ()=>{
+      localStorage.setItem('html', htmlEl.value);
+      localStorage.setItem('css', cssEl.value);
+      localStorage.setItem('js', jsEl.value);
+    };
+    [htmlEl,cssEl,jsEl].forEach(el=>el.addEventListener('input',()=>{ clearTimeout(t); t=setTimeout(save,500); }));
+    document.getElementById('saveBtn').onclick = save;
+
+    /* Upload file */
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.html,.htm';
+
+    uploadBtn.onclick = () => fileInput.click();
+
+    fileInput.onchange = e => {
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        htmlEl.value = reader.result;
+        cssEl.value = '';
+        jsEl.value = '';
+        alert('Đã tải file HTML');
+      };
+      reader.readAsText(file);
+    };
+
+    /* Shortcuts */
+    document.addEventListener('keydown', e => {
+      if(e.ctrlKey && e.key === 'Enter'){ e.preventDefault(); document.getElementById('previewBtn').click(); }
+      if(e.key === 'Escape'){ document.getElementById('backBtn').click(); }
+    });
+
+    /* Load */
+    htmlEl.value = localStorage.getItem('html') || '<h1>TikTok : caokhanhduy9 
+uid : 2282959525</h1>';
+    cssEl.value = localStorage.getItem('css') || 'body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#111;color:#a855f7;font-family:sans-serif}';
+    jsEl.value = localStorage.getItem('js') || 'console.log("JS running")';
+  </script>
+
+</body>
+</html>
